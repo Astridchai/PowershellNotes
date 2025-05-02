@@ -1,0 +1,9 @@
+#The following script can meet the requirement that only delete the extension of ".jpg" and ".dat" files in the "Preservation Hold Library" .
+#Replace the following $Url
+Connect-PnPOnline-Urlhttps://m365x03436810.sharepoint.com/sites/site1-useWebLogin  
+ 
+$jpgitems = Get-PnPListItem -List "Preservation Hold Library" -PageSize 200 | Where { $_.FieldValues.FileLeafRef -like "*.pst"} 
+foreach($jpgitem in $jpgitems) {Remove-PnPListItem -List " Preservation Hold Library " -Identity $jpgitem.Id   -Force}
+ 
+$datitems = Get-PnPListItem -List " Preservation Hold Library " -PageSize 200 | Where { $_.FieldValues.FileLeafRef -like "*.dat"} 
+foreach($datitem in $datitems) {Remove-PnPListItem -List " Preservation Hold Library " -Identity $datitem.Id   -Force} 
