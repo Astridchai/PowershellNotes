@@ -1,0 +1,56 @@
+$AdminSiteURL = https://tenant-admin.sharepoint.com
+$ReportFile = "C:\Temp\$((Get-Date).ToString("yyyyMMdd_HHmmss"))_ODUsersReport.csv"
+#make sure the log folder path exists
+$LogFileName = "C:\Temp\" + $RunTime + "jobLog.log"
+#global admin account for SharePoint/OneDrive
+$SPadmin = user@tenant.onmicrosoft.com
+$RemoveSwitch = $false
+#Connect to SharePoint Online Admin Center
+Connect-SPOService -Url $AdminSiteURL #-credential $Cred
+ 
+function Write-Log([string[]]$Message, [string]$LogFile = $Script:LogFile, [switch]$ConsoleOutput) {
+    $Message = $Message + $Input
+    If ($null -ne $Message -and $Message.Length -gt 0) {
+        if ($LogFile -ne $null -and $LogFile -ne [System.String]::Empty) {
+            Out-File -Append -FilePath $LogFile -InputObject "$Message"         
+        }
+        if ($ConsoleOutput -eq $true) {
+            Write-Host "$Message"
+        }
+    }
+}
+ 
+#Get all Personal Site collections
+$ODSites = Get-SPOSite -Template "SPSPERS" -limit ALL -includepersonalsite $True | Select URL, Owner
+$UserList = @()
+foreach ($ODSite in $ODSites) {
+    #bypass the OneDrive site collection which is owned by SPadmin
+    if ($ODSite.Owner -ne $SPadmin) {
+        #Add Site collection Admin
+        Write-Log -LogFile $LogFileName -Message "Add user $($SPadmin) to OneDrive site $($ODSite.URL) Admin" -ConsoleOutput $True
+        Set-SPOUser -site $ODSite.URL -LoginName $SPadmin -IsSiteCollectionAdmin $True
+        while ((Get-SPOUser -Site $ODSite.URL | ? { $_.LoginName -eq $SPadmin }).IsSiteAdmin -eq $false) {
+            Write-Log -LogFile $LogFileName -Message "Waiting for user $($SPadmin) to be added to OneDrive site $($ODSite.URL) Admin" -ConsoleOutput $True
+            Start-Sleep -Seconds 2
+        }
+ 
+        $users = Get-SPOUser -Site $ODSite.URL | ? { $_.LoginName -like '*Jake*' }
+        foreach ($user in $users) {
+            #export migration users and $ODSite.URL to csv          
+            $UserList += New-Object PSObject -property $([ordered]@{
+                    OneDriveURL   = $ODSite.URL           
+                    UserLoginName = $user.LoginName
+                })
+        
+            if ($RemoveSwitch) {
+                #Remove user from user information list
+                Write-Log -LogFile $LogFileName -Message "Remove user $($user.LoginName) from OneDrive site $($ODSite.URL)"
+                Remove-SPOUser -Site $ODSite.URL -LoginName $user.LoginName
+            }               
+        }
+        Write-Log -LogFile $LogFileName -Message "Remove user $($SPadmin) From OneDrive site $($ODSite.URL) Admin" -ConsoleOutput $True
+        Set-SPOUser -site $ODSite.URL -LoginName $SPadmin -IsSiteCollectionAdmin $false
+    }    
+}
+$UserList | Export-CSV $ReportFile -NoTypeInformation
+Write-host "Script completed, check the log for details." -f Green
