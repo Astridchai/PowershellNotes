@@ -1,0 +1,25 @@
+#Get Credentials to connect to the SharePoint Admin Center
+$Cred = Get-Credential
+ 
+#Connect to SharePoint Online Admin Center & Exchange online admin center
+Connect-SPOService -Url $AdminSiteURL -credential $Cred
+
+#export all OneDrive Site url
+$OneDriveSites = Get-SPOSite -IncludePersonalSite $true -Limit all -Filter "Url -like '-my.sharepoint.com/personal/'"
+
+#Save the .csv file to this path
+$CSVPath = "C:\Temp\ODBSites.csv"
+
+#Export all ODB url whichi M365 group named "M365TestGroup" could access to
+$FileData = @()
+Foreach ($OneDriveSite in $OneDrivesites)
+{
+$GetSite = Get-SPOUser -Site $OneDriveSite | where {$_.displayname -eq "M365TestGroup Members"}
+If ($GetSite -ne $null)
+  {
+
+   $FileData += $OneDriveSite
+
+  }
+$FileData | Export-Csv -Path $CSVPath -NoTypeInformation
+}
