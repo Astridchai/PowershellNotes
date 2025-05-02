@@ -1,0 +1,85 @@
+#Config Variables
+$SiteURL = "https://m365x98246264.sharepoint.com/sites/AstridFirstTestTeamSite"
+$CSVFilePath = "C:\Temp\LargeFiles.csv"
+ 
+#Connect to PnP Online
+Connect-PnPOnline -Url $SiteURL -Credentials (Get-Credential) 
+ 
+#Get all document libraries
+$FileData = @()
+$DocumentLibraries = Get-PnPList | Where-Object {$_.BaseType -eq "DocumentLibrary" -and $_.Hidden -eq $False}
+ 
+#Iterate through document libraries
+ForEach ($List in $DocumentLibraries)
+{
+    Write-host "Processing Library:"$List.Title -f Yellow
+     
+    #Get All Files of the library with size > 1MB
+    $Files = Get-PnPListItem -List $List -PageSize 500 | Where {($_.FieldValues.FileLeafRef -like "*.*") -and ($_.FieldValues.SMTotalFileStreamSize/1MB -gt 1)}
+     
+    #Collect data from each files
+    ForEach ($File in $Files)
+    {
+        $FileData += [PSCustomObject][ordered]@{
+            Library         = $List.Title
+            FileName        = $File.FieldValues.FileLeafRef
+            URL              = $File.FieldValues.FileRef
+            Size            = [math]::Round(($File.FieldValues.SMTotalFileStreamSize/1MB),2)
+        }
+    }
+}
+#Export Files data to CSV File
+$FileData | Sort-object Size -Descending
+$FileData | Export-Csv -Path $CSVFilePath -NoTypeInformation
+
+=======================
+
+#Below is how to export all large files for all subsites of a SPO site:
+
+#Variables
+$SiteURL = "https://m365x98246264.sharepoint.com/sites/AstridFirstTestTeamSite"
+
+#Connect to PnP Online
+Connect-PnPOnline -Url $SiteURL -useweblogin
+ 
+#Get subsites in SharePoint Online using PnP PowerShell
+$WebsCollection = Get-PnPSubWeb -Recurse
+
+
+$CSVFilePath = "C:\Temp\LargeFiles.csv"
+
+ForEach ($Web in  $WebsCollection){
+
+Connect-PnPOnline -Url $Web.Url -useWeblogin
+
+#Get all document libraries
+$FileData = @()
+$DocumentLibraries = Get-PnPList | Where-Object {$_.BaseType -eq "DocumentLibrary" -and $_.Hidden -eq $False}
+ 
+#Iterate through document libraries
+ForEach ($List in $DocumentLibraries)
+{
+    Write-host "Processing Library:"$List.Title -f Yellow
+     
+    #Get All Files of the library with size > 5MB
+    $Files = Get-PnPListItem -List $List -PageSize 500 | Where {($_.FieldValues.FileLeafRef -like "*.*") -and ($_.FieldValues.SMTotalFileStreamSize/1MB -gt 5)}
+     
+    #Collect data from each files
+    ForEach ($File in $Files)
+    {
+      $FileData  =New-Object -TypeName PSObject -Property @{
+        Library         = $List.Title
+            FileName        = $File.FieldValues.FileLeafRef
+            URL              = $File.FieldValues.FileRef
+            Size            = [math]::Round(($File.FieldValues.SMTotalFileStreamSize/1MB),2)
+    } | Select-Object Library,FileName,URL,Size
+    }
+
+#Export Files data to CSV File
+#$FileData | Sort-object Size -Descending
+$FileData | Export-Csv -Path $CSVFilePath -NoTypeInformation -Append
+}
+
+
+
+}
