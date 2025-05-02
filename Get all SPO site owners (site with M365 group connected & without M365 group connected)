@@ -1,0 +1,41 @@
+1. Please install AzureAD module with cmd: Install-Module AzureAD
+2. Please connect AzureAD service with cmd: Connect-AzureAD
+3. Please connect SPO service with cmd: Connect-SPOService -url https://global-admin.sharepoint.com
+
+4. Now, we can run below scripts to get the site owner of all sharepoint sites:
+
+#Export file path
+$ReportOutput = "C:\Temp2\SiteOwner.csv"
+
+#Connect to SharePoint Online
+#Connect-SPOService -url https://global-admin.sharepoint.com -Credential (Get-Credential)
+#Connect-AzureAD 
+
+$Sites = Get-SPOSite -Limit ALL 
+
+$SiteOwners = @()
+
+Foreach ($Site in $Sites)
+{
+    $SiteURL = $Site.Url
+    $Owner = $Site.Owner
+    $Title = $Site.Title
+    $Siteid = Get-SPOSite $Site
+    $GroupOwner = (Get-AzureADGroupOwner -ObjectId $Siteid.GroupID | Select -ExpandProperty UserPrincipalName) -join "; "
+    
+    write-host "Check permission of the site: $SiteURL" -ForegroundColor Green
+    Write-host $GroupOwner
+
+    #Collect data
+    $SiteOwner = New-Object PSObject
+    $SiteOwner | Add-Member NoteProperty Url($SiteURL)
+    $SiteOwner | Add-Member NoteProperty Owner($Owner)
+    $SiteOwner | Add-Member NoteProperty Title($Title)
+    $SiteOwner | Add-Member NoteProperty GroupOwner($GroupOwner)
+    $SiteOwners += $SiteOwner
+
+    Start-Sleep -s 1
+}
+
+#Export the Data to CSV file
+$SiteOwners | Export-Csv -Path $ReportOutput –NoTypeInformation
