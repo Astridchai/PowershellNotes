@@ -1,0 +1,61 @@
+--------------
+csv file
+Account 
+AlexW@M365x04199248.OnMicrosoft.com 
+RaulR@M365x04199248.OnMicrosoft.com 
+ChristieC@M365x04199248.onMicrosoft.com 
+OneDriveUrl 
+https://m365x04199248-my.sharepoint.com/personal/alexw m365x04199248 onmicrosoft com 
+https://m365x04199248-my.sharepoint.com/personal/raulr m365x04199248 onmicrosoft com 
+https://m365x04199248-my.sharepoint.com/personal/christiec m365x04199248 onmicrosoft com 
+---------------
+
+$CSVPath = "C:\Users\mengjiechai\Temp\Sample.csv"
+ 
+#Connect to Tenant
+$password = (ConvertTo-SecureString -AsPlainText 'Astrid227933.?' -Force)
+Connect-PnPOnline -Url "https://m365x04199248-admin.sharepoint.com/" -ClientId "98b42ecc-0002-4f94-b4b9-c8947cbf5d26" -CertificatePath 'C:\Temp\AzureApp\Contoso.pfx' -CertificatePassword $password -Tenant 'm365x04199248.onmicrosoft.com'
+
+#Get Site Collections to create from a CSV file
+$SiteCollections = Import-Csv -Path $CSVPath
+
+# Loop through csv and check the account status & OneDrive site status
+ForEach ($Site in $SiteCollections) {
+    Try {
+        # Get Parameters from CSV
+        $Account = $Site.Account
+        $OneDrive = $Site.OneDriveUrl
+
+        # Get account status & OneDrive site status
+        $AccountStatus = Get-PnPAzureADUser -Identity $Account
+        $SiteStatus = Get-PnPTenantSite -Identity $OneDrive
+
+        # Check if the account is deleted (if $AccountStatus is null or account is disabled)
+        If ($AccountStatus -eq $null -or $AccountStatus.AccountEnabled -eq $false) {
+            # Check the status of the OneDrive site to see if it has been locked
+            If ($SiteStatus.LockState -eq "Unlock") {
+                # Lock the OneDrive site of the account
+                Set-PnPTenantSite -Url $OneDrive -LockState NoAccess
+                Write-Host "Lock OneDrive site: $OneDrive" -ForegroundColor Yellow
+            }
+            Else {
+                Write-Host "OneDrive site of the account $($Account) is not accessible" -ForegroundColor Red
+            }
+        }
+        Else {
+            # Check the status of OneDrive site
+            If ($SiteStatus.LockState -eq "NoAccess") {
+                # Unlock the OneDrive site of the account
+                Set-PnPTenantSite -Url $OneDrive -LockState Unlock
+                Write-Host "Site $($OneDrive) is set to unlock now. This change may not be immediate." -ForegroundColor Yellow
+            }
+            Else {
+                Write-Host "The OneDrive site is available to user $($Account) with granted permissions" -ForegroundColor Green
+            }
+        }
+    }
+    Catch {
+        # If an error occurs (site not found, permissions issue, etc.), output the error and continue with the next
+        Write-Host -ForegroundColor Red "`tError: $($_.Exception.Message)"
+    }
+}
