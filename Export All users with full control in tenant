@@ -1,0 +1,64 @@
+Connect-PnPonline https://m365x23633681-admin.sharepoint.com -useweblogin
+$Sites = Get-PnPTenantSite -Detailed -Filter "Url -like 'm365x23633681.sharepoint.com/sites/'"
+$ReportOutput = "C:\Temp\FullControl.csv"
+
+ 
+#Loop through each permission assigned to the site and extract details
+$PermissionData = @()
+
+Foreach($SingleSite in $Sites)
+{
+$SiteURL = $SingleSite.Url
+
+#Connect to Site
+Connect-PnPonline -Url $SiteURL -Interactive
+  
+#Get the Root web
+$Web = Get-PnPWeb -Includes RoleAssignments
+
+ForEach ($RoleAssignment in $Web.RoleAssignments)
+{
+    #Get the Permission Levels assigned and Member
+    Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
+      
+    #Check if "Full Control" Permission Level is assigned to the Assignment
+    If( ($RoleAssignment.RoleDefinitionBindings | Select -ExpandProperty Name).Contains("Full Control"))
+    {
+        $PermissionType = $RoleAssignment.Member.PrincipalType
+        #Get SharePoint group members
+        If($PermissionType -eq "SharePointGroup")
+        {
+            #Get Group Members
+            $GroupMembers = Get-PnPGroupMember -Identity $RoleAssignment.Member.LoginName
+ 
+            $GroupUsers = ($GroupMembers | Where {$_.LoginName -ne "SHAREPOINT\system"} | Select -ExpandProperty Email) -join "; "
+            #Leave Empty Groups - Without users
+            If([String]::IsNullOrEmpty($GroupUsers)){ Continue }
+    
+            #Add the Data to Object
+            $Permissions = New-Object PSObject
+            $Permissions | Add-Member NoteProperty Name($RoleAssignment.Member.Title)
+            $Permissions | Add-Member NoteProperty Accounts($GroupUsers)
+            $Permissions | Add-Member NoteProperty Type($PermissionType)
+            $Permissions | Add-Member NoteProperty Url($SiteURL)
+            $PermissionData += $Permissions
+        }
+        Else
+        {
+            #Get the User
+            $User = Get-PnPUser -Identity $RoleAssignment.Member.LoginName
+            #Add the Data to Object
+            $Permissions = New-Object PSObject
+            $Permissions | Add-Member NoteProperty Name($RoleAssignment.Member.Title)
+            $Permissions | Add-Member NoteProperty Accounts($User.Email)
+            $Permissions | Add-Member NoteProperty Type($PermissionType)
+            $Permissions | Add-Member NoteProperty Url($SiteURL)
+            $PermissionData += $Permissions
+        }
+    }
+}
+
+
+}
+#Export Permissions data to CSV file
+$PermissionData | Export-csv -path $ReportOutput -NoTypeInformation
