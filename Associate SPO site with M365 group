@@ -1,0 +1,38 @@
+#Set Parameters
+$AdminCenterURL=https://m365x23633681-admin.sharepoint.com/
+$SiteUrl = "https://m365x23633681.sharepoint.com/sites/Astrid_sample3"
+$GroupName = "Astrid HR team"
+$GroupAlias = "AstridHR"
+ 
+#Connect to SharePoint Online
+Connect-SPOService -Url $AdminCenterURL -credential (Get-Credential)
+ 
+#Connect Team Site to Group
+Set-SPOSiteOffice365Group -Site $SiteURL -DisplayName $GroupName -Alias $GroupAlias
+
+#我在经过一些研究之后，我发现可以直接通过powershell命令来给没有M365 组的sharepoint站点创建M365组，命令参考 https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-spositeoffice365group?view=sharepoint-ps
+#After some research, I found that it is possible to directly create M365 groups for sharepoint sites without M365 groups through powershell commands. Command reference https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-spositeoffice365group?view=sharepoint-ps
+--------------
+
+#It is still through the sharepoint online management shell module.
+
+#The following is a simple sample for your reference. Your team can design the solution according to their own needs:
+#First, write all the created sharepoint sites into csv, and write the group name and Alias of the M365 group to be created for this site
+
+
+#Then create the M365 group for the existing sharepoint site through the following script
+---------------
+#Connection parameters, please enter Sharepoint online admin center url here
+$AdminURL = "https://astrid21vtest-admin.sharepoint.cn"
+ 
+#Get Credentials to connect
+$Cred= Get-Credential -Message "Enter the Admin Credentials"
+$Credentials = New-Object -TypeName System.Management.Automation.PSCredential -argumentlist $Cred.Username, $Cred.Password
+
+Connect-SPOService -Url $AdminURL -Credential $Credentials
+
+#Create M365 group for Sharepoint site
+Import-Csv "C:\Sample.csv" | ForEach-Object {Set-SPOSiteOffice365Group -Site $_.Site -DisplayName $_.DisplayName -Alias $_.Alias}
+-------------------
+
+
